@@ -1,0 +1,474 @@
+---
+title: "Case Study 3 - Deregulation of the Intrastate Trucking Industry"
+author: "Nursima Donuk"
+date: "11/20/2020"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Fall 2020 - STAT 214 - Project 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary:
+
+Consider the problem of modeling the price charged for motor transport service (e.g., trucking) in Florida. In the early 1980s, several states removed regulatory constraints on the rate charged for intrastate trucking services. (Florida was the first state to embark on a deregulation policy on July 1, 1980.) Prior to this time, the state determined price schedules for motor transport service with review and approval by the Public Service Commission. Once approved, individual carriers were not allowed to deviate from these official rates. The objective of the regression analysis is twofold: 
+(1) assess the impact of deregulation on the prices charged for motor transport service in the state of Florida, and (2) estimate a model of the supply price for predicting future prices.
+
+
+```{r, warning=FALSE, message=FALSE}
+# Install development version from GitHub
+# install.packages("devtools")
+# devtools::install_github("rsquaredacademy/olsrr")
+library(olsrr)
+library(tidyverse)
+```
+
+## Getting Familiar with the Data
+```{r, warning=FALSE, message=FALSE}
+load("TRUCKING.Rdata")
+head(TRUCKING)
+str(TRUCKING)
+```
+
+We see that the data has 10 variables and 134 observations. 
+One of the 10 variables is `CARRIER` which is the same throughout the entire data-set.
+Then we have `PRICEPTM` and `LNPRICE` which are variations of the dependent variable.
+
+Therefore we have 6 independent variables to consider:
+
+* `DISTANCE` Miles traveled (in hundreds)
+* `WEIGHT` Weight of product shipped (in 1,000 pounds) 
+* `PCTLOAD` Percent of truck load capacity 
+* `ORIGIN` City of origin (JAX or MIA)
+* `MARKET` Size of market destination (LARGE or SMALL)
+* `DEREG` Deregulation in effect (YES or NO)
+
+
+## Plots
+
+```{r, figures-side, fig.show="hold", out.width="50%", echo=FALSE}
+plot(TRUCKING$DISTANCE, TRUCKING$LNPRICE, main="DISTANCE vs ln(PRICE)", col = "skyblue", pch=19)
+plot(TRUCKING$WEIGHT, TRUCKING$LNPRICE, main="WEIGHT vs ln(PRICE)", col = "darkorange", pch=19)
+```
+
+```{r, figures-side2, fig.show="hold", out.width="50%", echo=FALSE}
+plot(TRUCKING$PCTLOAD, TRUCKING$LNPRICE, main="%LOAD vs ln(PRICE)", col = "green", pch=19)
+plot(TRUCKING$MARKET, col = "deeppink", main = "Market Size Histogram")
+```
+
+```{r, figures-side3, fig.show="hold", out.width="50%", echo=FALSE}
+plot(TRUCKING$ORIGIN, col = "coral2", main = "City of Origin Histogram")
+plot(TRUCKING$DEREG, col = "springgreen3", main = "Deregulation Histogram")
+```
+
+## Step-wise Regression
+
+We see that we have 6 independent variables and using all 6 of them to build a curvilinear model will require a large amount of terms, which will lead to a small degrees of freedom. So we will apply step-wise regression to choose the most relevant independent variables to the dependent variable. 
+
+```{r}
+#The plot method shows the panel of fit criteria for best subset regression methods.
+model<- lm(LNPRICE ~ DISTANCE + WEIGHT + PCTLOAD + ORIGIN + MARKET + DEREG, data = TRUCKING)
+k <-ols_step_both_p(model, details = T)
+plot(k)
+```
+
+We can observe that the model with 4 independent variables provides us the best predictors.
+
+* `DISTANCE` Miles traveled (in hundreds)
+* `WEIGHT` Weight of product shipped (in 1,000 pounds) 
+* `ORIGIN` City of origin (JAX or MIA)
+* `DEREG` Deregulation in effect (YES or NO)
+
+Distance and weight are quantitative variables while origin and deregulation is qualitative. 
+
+$$x_1 = \text{Distance shipped}$$ 
+
+$$x_2 = \text{Weight of product}$$
+
+$$x_3 = \left\{
+        \begin{array}{ll}
+            1 & \quad \text{if deregulation in effect} \\
+            0 & \quad \text{if not}
+        \end{array}
+    \right.$$
+    
+$$x_4 = \left\{
+        \begin{array}{ll}
+            1 & \quad \text{if originate in Miami} \\
+            0 & \quad \text{if originate in Jacksonville}
+        \end{array}
+    \right.$$
+
+## Building the First Models
+
+**Renaming variables**
+```{r}
+Y <- TRUCKING$LNPRICE
+X1 <- TRUCKING$DISTANCE
+X2 <- TRUCKING$WEIGHT
+X3 <- TRUCKING$DEREG
+X4 <- TRUCKING$ORIGIN
+```
+
+**The Complete Second Order Model**
+
+```{r}
+model1 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X4 + X3*X4 + X1*X3 + X1*X4 + X1*X3*X4 + X2*X3 + X2*X4 + X2*X3*X4 + X1*X2*X3 + X1*X2*X4 + X1*X2*X3*X4 + I(X1^2)*X3 + I(X1^2)*X4 + I(X1^2)*X3*X4 + I(X2^2)*X3 + I(X2^2)*X4 + I(X2^2)*X3*X4)
+summary(model1)
+```
+
+**Taking out Squared Terms**
+
+We will create another model, that is the same as the above except that it does not have the squared terms.
+
+```{r}
+model2 <- lm(Y ~ X1 + X2 + X1*X2 +X3 + X4 + X3*X4 + X1*X3 + X1*X4 + X1*X3*X4 + X2*X3 + X2*X4 + X2*X3*X4 + X1*X2*X3 + X1*X2*X4 + X1*X2*X3*X4)
+summary(model2)
+```
+
+**Keep the Squared Terms and Remove Interaction Between Qualitative and Quantitative**
+```{r}
+model3 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X4 + X3*X4)
+summary(model3)
+```
+
+**Only Remove Squared Interactions**
+```{r}
+model4 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X4 + X3*X4 + X1*X3 + X1*X4 + X1*X3*X4 + X2*X3 + X2*X4 + X2*X3*X4 + X1*X2*X3 + X1*X2*X4 + X1*X2*X3*X4)
+summary(model4)
+```
+
+## Choosing a model at ($\alpha = 0.01$)
+
+We can observe that all models resulted in a small p-value from the global F-test. Meaning they all are statistically useful for predicting trucking price. We will one by one compare the models.
+
+**Model 1 vs Model 2:** We can observe that Model 1 has a higher adjusted R squared and more statistically significant terms. We will conduct a partial F-test to see if the full model is statistically a better better predictor than the reduced model (Model 2).
+
+$$
+H_0: \beta_4 = \beta_5 = \beta_{18} = \beta_{19} = \beta_{20} = \beta_{21} = \beta_{22} = \beta_{23} = 0
+$$
+$$
+H_a: \text{At least one of the quadratic } \beta \text{'s in Model 1 differs from 0}
+$$
+```{r}
+anova(model1, model2)
+```
+
+The small p-value suggests that we can reject the null hypothesis. Concluding that the quadratic terms in Model 1 are statistically significant.
+
+**Model 1 vs Model 3:** We can see that the adjusted R squared of Model 3 is even lower than Model 2's. We will conduct a partial F-test to see if the reduced model is statistically worse than Model 1 (complete second order model).
+
+$$
+H_0: \beta_9 = \beta_{10} = \beta_{11} = \beta_{12} = \beta_{13} = \beta_{14} = \beta_{15} = \beta_{16} = \beta_{17} = \beta_{18} = \beta_{19} = \beta_{20} = \beta_{21} = \beta_{22} = \beta_{23} = 0
+$$
+$$
+H_a: \text{At least one of the QNxQL interaction } \beta \text{'s in Model 1 differs from 0}
+$$
+
+```{r}
+anova(model1, model3)
+```
+
+The small p-value suggests that the QNxQL interation terms are significant and at least one of the coefficients differ from 0. Therefore we will continue with Model 1.
+
+**Model 1 vs Model 4:** We can observe that Model 4 has a significant amount of more statistically significant terms. Also Model 4 has a higher adjusted R squared value. Conducting a partial F-test will show which model is statistically significant aside from the observations.
+
+$$
+H_0: \beta_{18} = \beta_{19} = \beta_{20} = \beta_{21} = \beta_{22} = \beta_{23} = 0
+$$
+$$
+H_a: \text{At least one of the qualitative-quadratic interaction } \beta \text{'s in Model 1 differs from 0}
+$$
+
+```{r}
+anova(model1, model4)
+```
+
+The large p-value suggests that we fail to reject the null hypothesis and therefore we choose Model 4 to be the better predictor.
+
+## Building More Models
+
+**Drop Terms Containing X4 from Model 4**
+```{r}
+model5 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X1*X3 + X2*X3 + X1*X2*X3)
+summary(model5)
+```
+
+**Drop Terms Containing X3 from Model 4**
+```{r}
+model6 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X4 + X1*X4 + X2*X4 + X1*X2*X4)
+summary(model6)
+```
+
+**Drop all Qualitative-Qualitative Interactions**
+```{r}
+model7 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X4 + X1*X3 + X1*X4+ X2*X3 + X2*X4 + X1*X2*X3 + X1*X2*X4)
+summary(model7)
+```
+
+## Choosing the Final Model at ($\alpha = 0.01$)
+
+**Model 4 vs Model 5:** We can observe that the adjusted R squared in both models is high. Conducting a partial F-test to compare these models results in the following output:
+
+$$
+H_0: \beta_7 = \beta_8 = \beta_{10} = \beta_{11} = \beta_{13} = \beta_{14} = \beta_{16} = \beta_{17} = 0
+$$
+$$
+H_a: \text{At least one of the origin } \beta \text{'s in Model 4 differs from 0}
+$$
+
+```{r}
+anova(model4, model5)
+```
+
+The small p-value ($<.01$) means that we reject the null hypothesis and we conclude that origin terms are statistically significant. Therefore, we continue testing with Model 4.
+
+**Model 4 vs Model 6:** It can be observed that the adjusted R squared value for Model 6 is significantly lower than Model 4's. We can conduct a partial F-test to find out if Model 4 is statistically a better predictor than Model 6.
+
+$$
+H_0: \beta_6 = \beta_8 = \beta_9 = \beta_{11} = \beta_{12} = \beta_{14} = \beta_{15} = \beta_{17} = 0
+$$
+$$
+H_a: \text{At least one of the deregulation } \beta \text{'s in Model 4 differs from 0}
+$$
+
+```{r}
+anova(model4, model6)
+```
+
+The small p-value resulting from this test leads us to reject the null hypothesis. Concluding that Model 4 is a statistically better predictor for trucking price.
+
+**Model 4 vs Model 7:** We can see that the adjusted R squared values for these models do not differ significantly. Conducting a partial F-test results in:
+
+$$
+H_0 = \beta_8 = \beta_{11} = \beta_{14} = \beta_{17} = 0
+$$
+$$
+H_a: \text{At least one of the QLxQL interaction } \beta \text{'s in Model 4 differs from 0}
+$$
+
+```{r}
+anova(model4, model7)
+```
+
+It can be observed that the p-value is $> .01$, meaning we fail to reject the null hypothesis that all QLxQL interaction terms are 0. Leading us to choose Model 7 as our final model.
+
+## Impact of Deregulation
+
+Now that we have chosen our model, let us observe the impact of deregulation on trucking price.
+
+```{r}
+summary(model7)
+```
+
+$$\hat{y} = 12.192-.598x_1-.00598x_2-.01078x_1x_2+.086x_1^2+.00014x_2^2$$
+
+$$ +.677x_4-.275x_1x_4-.026x_2x_4+.013x_1x_2x_4-.782x_3$$
+
+$$+.0399x_1x_3-.021x_2x_3-.0033x_1x_2x_3$$
+
+A good way to assess the impact of deregulation is to hold all but one independent variable fixed. Suppose weight of shipment is 15,000 pounds and consider only shipments originating from Jacksonville ($x_2=15$ and $x_4=0$). Substituting these values into the prediction equation results in:
+
+$$\hat{y} = 12.192-.598x_1-.00598(15)-.01078x_1(15)+.086x_1^2+.00014(15)^2$$
+
+$$ + .677(0)-.275x_1(0)-.026(15)(0)+.013x_1(15)(0)-.782x_3 $$ 
+
+$$+.0399x_1x_3-.021(15)x_3-.0033x_1(15)x_3$$
+
+$$ = 12.192-.760x_1+.086x_1^2-1.097x_3-.0096x_1x_3$$
+
+To see the impact of deregulation now we will plug in $x_3=1$ (deregulated) and $x_3=0$ (regulated), shown below:
+
+$$\text{Regulated} (x_3=0): \hat{y} = 12.192-.760x_1+.086x_1^2-1.097(0)-.0096x_1(0) $$
+
+$$ = 12.192-.760x_1+.086x_1^2$$
+
+$$\text{Deregulation} (x_3=1): \hat{y} = 12.192-.760x_1+.086x_1^2-1.097(1)-.0096x_1(1) $$
+
+$$ = 11.037-.7696x_1+.086x_1^2 $$
+
+We can see that the y-intercept for the regulated prices is larger than the y-intercept for the deregulated prices. The equations have the same curvature but the shift parameter differs.
+
+```{r}
+reg <- function(x) {
+  yint<- 12.134
+  shift <- 0.76*x
+  curve <- 0.086*x*x
+  return(yint-shift+curve)
+}
+dereg <- function(x) {
+  yint<- 11.037
+  shift <- 0.7696*x
+  curve <- 0.086*x*x
+  return(yint-shift+curve)
+}
+```
+
+### Plotting
+
+```{r}
+summary(TRUCKING$DISTANCE)
+x <- seq(0.25, 6, 0.25)
+plot(x, reg(x),
+     main = "Plot of PREDICT vs DISTANCE",
+     ylab = "Predicted LN(PRICE)",
+     xlab = "DISTANCE",
+     ylim = range(9:12),
+     type = "o",
+     pch = "o",
+     col = "darkmagenta")
+points(x, dereg(x), col = "darkgreen", pch = "+")
+lines(x, dereg(x), col = "darkgreen")
+legend("topright", c("regulated", "deregulated"),
+       fill = c("darkmagenta", "darkgreen"))
+
+```
+
+The graph clearly shows the impact of deregulation on the prices charged when the carrier leaves from Jacksonville with a cargo of 15,000 pounds. As expected from economic theory, the curve for the regulated prices lies above the curve for deregulated prices.
+
+## Follow-up Questions
+
+**1) In the Plot, give an expression (in terms of the estimated $\beta$’s from Model 7) for the difference between the predicted regulated price and predicted deregulated price for any fixed value of mileage.**
+
+Regulated - Deregulated:
+
+$$ (12.192-.760x_1+.086x_1^2) - (11.037-.7696x_1+.086x_1^2)$$
+
+$$= 1.155 - 0.0096x_1$$
+
+```{r}
+diff <- function(x) {
+  yint <- 1.155
+  slope <- (0.0096*x)
+  return(yint-slope)
+}
+```
+
+```{r}
+plot(x, diff(x),
+     main = "Difference for Regulated and Deregulated Trucking Prices",
+     ylab = "Difference",
+     xlab = "DISTANE/MILES",
+     col = "blue",
+     type = "o",
+     pch = "*")
+```
+
+
+**2) Demonstrate the impact of deregulation on price charged using the estimated $\beta$’s from Model 7 in a fashion similar to the case study, but now hold origin fixed at Miami and weight fixed at 10,000 pounds.**
+
+Plugging in $x_2=10$ and $x_4=1$ we get:
+
+$$\hat{y} = 12.192-.598x_1-.00598(10)-.01078x_1(10)+.086x_1^2+.00014(10)^2$$
+
+$$ +.677(1)-.275x_1(1)-.026(10)(1)+.013x_1(10)(1)-.782x_3+.0399x_1x_3$$
+
+$$-.021(10)x_3-.0033x_1(10)x_3$$
+
+$$ = 12.5632 - .8508x_1 + .086x_1^2-.992x_3+.0069x_1x_3$$
+
+To see the impact of deregulation now we will plug in $x_3=1$ (deregulated) and $x_3=0$ (regulated), shown below:
+
+$$\text{Regulated} (x_3=0): \hat{y} = 12.5632 - .8508x_1 + .086x_1^2-.992(0)+.0069x_1(0) $$
+
+$$ = 12.5632 - .8508x_1 + .086x_1^2$$
+
+$$\text{Deregulation} (x_3=1): \hat{y} = 12.5632 - .8508x_1 + .086x_1^2-.992(1)+.0069x_1(1) $$
+
+$$ = 11.5712 -.8439x_1 + .086x_1^2$$
+
+We can see that the y-intercept for the regulated prices is larger than the y-intercept for the deregulated prices. The equations have the same curvature but the shift parameter differs.
+
+```{r}
+regm <- function(x) {
+  yint<- 12.5632
+  shift <- 0.8508*x
+  curve <- 0.086*x*x
+  return(yint-shift+curve)
+}
+deregm <- function(x) {
+  yint<- 11.5712
+  shift <- 0.8439*x
+  curve <- 0.086*x*x
+  return(yint-shift+curve)
+}
+```
+
+**Plotting:**
+
+```{r}
+plot(x, regm(x),
+     main = "Plot of PREDICT vs DISTANCE",
+     ylab = "Predicted LN(PRICE)",
+     xlab = "DISTANCE",
+     ylim = range(9:13),
+     type = "o",
+     pch = "o",
+     col = "darkmagenta")
+points(x, deregm(x), col = "darkgreen", pch = "+")
+lines(x, deregm(x), col = "darkgreen")
+legend("topright", c("regulated", "deregulated"),
+       fill = c("darkmagenta", "darkgreen"))
+
+```
+
+The graph clearly shows the impact of deregulation on the prices charged when the carrier leaves from Miami with a cargo of 10,000 pounds. As expected from economic theory, the curve for the regulated prices lies above the curve for deregulated prices.
+
+
+**3) The data file TRUCKING4 contains data on trucking prices for four Florida carriers (A, B, C, and D). These carriers are identified by the variable CAR-RIER. (Note: Carrier B is the carrier analyzed in the case study.) Using Model 7 as a base model, add terms that allow for different response curves for the four carriers. Conduct the appropriate test to determine if the curves differ.**
+
+```{r}
+load("TRUCKING4.Rdata")
+head(TRUCKING4)
+str(TRUCKING4)
+```
+
+Original Model 7 (Without Carrier Terms):
+$$\hat{y} = 12.192-.598x_1-.00598x_2-.01078x_1x_2+.086x_1^2+.00014x_2^2$$
+
+$$ +.677x_4-.275x_1x_4-.026x_2x_4+.013x_1x_2x_4-.782x_3$$
+
+$$+.0399x_1x_3-.021x_2x_3-.0033x_1x_2x_3$$
+
+Adding in $x_5, x_6, x_7$ for Carrier:
+
+
+$$x_5 = \left\{
+        \begin{array}{ll}
+            1 & \quad \text{if Carrier B} \\
+            0 & \quad \text{if not}
+        \end{array}
+    \right.$$
+    
+$$x_6 = \left\{
+        \begin{array}{ll}
+            1 & \quad \text{if Carrier C} \\
+            0 & \quad \text{if not}
+        \end{array}
+    \right.$$
+    
+$$x_7 = \left\{
+        \begin{array}{ll}
+            1 & \quad \text{if Carrier D} \\
+            0 & \quad \text{if not}
+        \end{array}
+    \right.$$
+    
+```{r}
+Y <- TRUCKING4$LNPRICE
+X1 <- TRUCKING4$DISTANCE
+X2 <- TRUCKING4$WEIGHT
+X3 <- TRUCKING4$DEREG
+X4 <- TRUCKING4$ORIGIN
+X5 <- TRUCKING4$CARRIER
+```
+    
+```{r}
+model8 <- lm(Y ~ X1 + X2 + X1*X2 + I(X1^2) + I(X2^2) + X3 + X4 + X5 + X1*X3 + X1*X4 + X1*X5 + X2*X3 + X2*X4 + X2*X5 + X1*X2*X3 + X1*X2*X4 + X1*X2*X5)
+summary(model8)
+```
+
+**The End**
